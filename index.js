@@ -71,7 +71,7 @@ mongoose.connect("mongodb+srv://Stephen:IC2FR9x60QugWZSY@cluster0-uohh3.mongodb.
           }
         }).catch((err) => { console.log('Jobs not working')})
         .then(function(result) {
-          const glassdoorUrl = 'http://api.scraperapi.com/?key=522d8cfbb9b37afb76e391a3d0114b60&url=' + glassdoor.strings[result.job][result.metroArea];
+          const glassdoorUrl = 'http://api.scraperapi.com/?key=&url=' + glassdoor.strings[result.job][result.metroArea];
          
           const glassdoorSalary = {
             uri: glassdoorUrl,
@@ -101,7 +101,8 @@ mongoose.connect("mongodb+srv://Stephen:IC2FR9x60QugWZSY@cluster0-uohh3.mongodb.
       
           }).catch((err) => { console.log('Jobs not working')})
           .then(function(result) {
-            let now = new Date();
+            let today = new Date();
+            console.log(today.getDate())
             console.log(result)
             const report = new Report({
               title: result.job,
@@ -110,7 +111,7 @@ mongoose.connect("mongodb+srv://Stephen:IC2FR9x60QugWZSY@cluster0-uohh3.mongodb.
               indeedSalary: result.indeedSalary,
               indeedSampleSet: result.samplesIndeed,
               indeedJobs: result.jobsIndeed,
-              created
+              created: today
             })
           })
         })
