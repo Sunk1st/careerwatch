@@ -1,5 +1,4 @@
 exports.titles = {
-  // 'Attorney': 'Attorney',
-  'Registered Nurse': 'Registered-Nurse',
-  // 'Software Engineer': 'Software-Engineer'
+  // 'Pharmacist': 'Pharmacist',
+  'Registered Nurse': 'Registered-Nurse'
 }

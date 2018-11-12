@@ -200,7 +200,7 @@ exports.locations = {
         indeedSalariesString: ',-Tampa-FL'
     },
     VirginiaBeach: { 
-        indeedJobsString: 'Virginia+Beach,+FL',
-        indeedSalariesString: ',-Virginia-Beach-FL'
+        indeedJobsString: 'Virginia+Beach,+VA',
+        indeedSalariesString: ',-Virginia-Beach-VA'
     },
 }

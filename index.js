@@ -7,8 +7,10 @@ const addressLocation = require('./addressStrings/IndeedLocations');
 const addressJob = require('./addressStrings/jobTitles');
 const glassdoorJobs = require('./addressStrings/glassdoorJobs')
 const glassdoorSalaries = require('./addressStrings/glassdoorSalaries');
+const indeedJobs = require('./addressStrings/indeedJobs');
+const indeedSalaries = require('./addressStrings/indeedSalaries');
 
-mongoose.connect("", { useNewUrlParser: true })
+mongoose.connect("mongodb+srv://Stephen:@cluster0-uohh3.mongodb.net/careerwatch?retryWrites=true", { useNewUrlParser: true })
   .then(() => { 
     console.log('Connected to MongoDB')
     return 'Ready'
@@ -17,10 +19,31 @@ mongoose.connect("", { useNewUrlParser: true })
   let timeout = 50
   for (let job in addressJob.titles) {
     for (let location in addressLocation.locations) {
-      timeout += 400;
+      timeout += 550;
       setTimeout(() => {
-        scrapeData(job, location).then((m) => {
-          console.log(m)
+        scrapeData(job, location).then((data) => {
+          let report = new Report ({
+            day: data.day,
+            glassdoorJobs: data.glassdoorJobs,
+            glassdoorSalary: data.glassdoorSalary,
+            glassdoorSalarySamples: data.glassdoorSalarySamples,
+            indeedJobs: data.indeedJobs,
+            indeedSalary: data.indeedSalary,
+            indeedSampleSet: data.indeedSalarySamples,
+            title: data.job,
+            metro: data.location,
+            month: data.month,
+            year: data.year
+          })
+
+          console.log(report)
+
+          // try {
+          //   report.save()
+          // } catch (err) {
+          //   console.log(err)
+          // }
+          
         })
       }, timeout)
     }
@@ -28,12 +51,12 @@ mongoose.connect("", { useNewUrlParser: true })
 }).then(function(result) {
   setTimeout(function() {
     console.log('Mongo Connection Closed');
-    mongoose.connection.close()
-  }, 30000)
+    // mongoose.connection.close()
+  }, 80000)
 })
 
 async function scrapeData(job, location) {
-  const key = 'http://api.scraperapi.com/?key=&url='
+  const key = ''
 
   const getGlassdoorJobsData = new Promise((resolve, reject) => {
     const glassdoorUrl = key + glassdoorJobs.strings[job][location];
@@ -48,7 +71,6 @@ async function scrapeData(job, location) {
       let jobs = Number($('.jobsCount').text()
         .replace(',', '')
         .replace('Jobs', ''))
-
       resolve(jobs)
     }).catch((err) => { console.log('Glassdoor Jobs Not working for ', job, location)})
   })
@@ -78,39 +100,45 @@ async function scrapeData(job, location) {
     }).catch((err) => { console.log('Glassdoor Salary Not working for ', job, location)})
   })
 
-  const getIndeedJobData = new Promise((resolve, reject) => {
-    let jobsIndeed
-    if (location !== '_Average'){
-      jobsIndeed = {
-        uri: `https://www.indeed.com/jobs?q=${job}&l=${location}&jt=fulltime`,
-        transform: function (body) {
-          return cheerio.load(body);
-        }
-      }
-    } else if (location === '_Average') {
-      jobsIndeed = {
-        uri: `https://www.indeed.com/jobs?q=${job}&jt=fulltime`,
-        transform: function (body) {
-          return cheerio.load(body);
-        }
+  const getIndeedJobsData = new Promise((resolve, reject) => {
+    const indeedJobsUrl = indeedJobs.strings[job][location];
+    
+    const jobsIndeed = {
+      uri: indeedJobsUrl,
+      transform: function (body) {
+        return cheerio.load(body);
       }
     }
     
     rp(jobsIndeed).then(($) => {
-      let totalJobs = $('#searchCount')
-        .text()
-        .slice(19, 30)
-        .split('')
-        .filter(character => character !== ',' && character < 10)
-        .join('')
-      resolve(totalJobs)
+      let totalJobs = Number($('#searchCount').text()
+        .replace('Page 1 of ', '')
+        .replace('jobs', '')
+        .replace (',', '')
+        .replace(' ', ''))
+      
+      if (totalJobs === 0) {
+        let filteredJobs = Number($('#SALARY_rbo .rbList li')
+          .first()
+          .text()
+          .split('')
+          .slice(12, 20)
+          .join('')
+          .replace('(', '')
+          .replace(')', ''))
+
+        resolve(filteredJobs)
+      } else {
+        resolve(totalJobs)
+      }
     }).catch((err) => { console.log('Jobs not working for', job, location)})
   })
 
   const getIndeedSalaryData = new Promise((resolve, reject) => {
-    let indeedSalaries = addressLocation.locations[location].indeedSalariesString
+    const indeedSalaryUrl = indeedSalaries.strings[job][location];
+
     const salaries = {
-      uri: `https://www.indeed.com/salaries/${addressJob.titles[job]}-Salaries${indeedSalaries}`,
+      uri: indeedSalaryUrl,
       transform: function (body) {
         return cheerio.load(body);
       }
@@ -121,15 +149,15 @@ async function scrapeData(job, location) {
         .split('').filter(character => character !== '$' && character !== ',')
         .join(''))
       if (salary === 0) {
-        console.log($.text())
+        console.log($('.cmp-sal-salary .cmp-salary-amount').text(), job, location)
       } else if (salary < 1000) {
         salary = salary * 2087
       }
-      let samples = $('.cmp-salary-header-content')
+      let samples = Number($('.cmp-salary-header-content')
         .text().split('')
         .slice(0, 30)
         .filter(character => character < 10 && character !== ' ' )
-        .join('')
+        .join(''))
       
       resolve({
         salary: salary,
@@ -138,15 +166,39 @@ async function scrapeData(job, location) {
     }).catch((err) => { console.log('Indeed Salaries not working for ', job, location)})
   })
 
-  let glassdoorSalaryData = await getGlassdoorSalaryData;
-  let indeedSalaryData = await getIndeedSalaryData;
-  let indeedJobData = await getIndeedJobData;
-  let glassdoorJobsData = await getGlassdoorJobsData;
+  let glassdoorSalaryData, indeedSalaryData, indeedJobData, glassdoorJobsData
+  try {
+    glassdoorSalaryData = await getGlassdoorSalaryData;
+  } catch (e) {
+    glassdoorSalaryData = 0;
+    console.log('glassdoorSalary error', e, job, location)
+  }
 
-  let now = new Date();
-  let day = now.getUTCDate()
-  let month = now.getMonth()
-  let year = now.getFullYear()
+  try {
+    indeedSalaryData = await getIndeedSalaryData;
+  } catch (e) {
+    indeedSalaryData = 0
+    console.log('indeedSalary error', e, job, location)
+  }
+  
+  try {
+    indeedJobData = await getIndeedJobsData;
+  } catch (e) {
+    indeedJobData = 0;
+    console.log('indeedJob error', e, job, location)
+  }
+
+  try {
+    glassdoorJobsData = await getGlassdoorJobsData;
+  } catch (e) {
+    glassdoorJobsData = 0;
+    console.log('Glassdoor Jobs Error', e, job, location)
+  }
+  
+  let date = new Date();
+  let day = date.getUTCDate()
+  let month = date.getMonth()
+  let year = date.getFullYear()
  
   return {
     day: day,
